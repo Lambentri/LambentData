@@ -1,0 +1,1 @@
+NAMESPACE_PREFIX = "com.lambentri.data."
