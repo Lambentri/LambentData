@@ -1,5 +1,11 @@
 import csv
-import datetime, logging, os, treq, zipfile
+import datetime
+import logging
+import os
+import treq
+import zipfile
+from dataclasses import dataclass, field
+from typing import List, Dict, Optional, Any
 
 import pytz
 from aenum import Enum
@@ -7,20 +13,16 @@ from autobahn import wamp
 from autobahn.twisted import ApplicationSession
 from autobahn.twisted.component import Component
 from autobahn.twisted.component import run
-from dataclasses import dataclass, field
-
 from twisted.internet.defer import inlineCallbacks
 from twisted.internet.task import LoopingCall
 from twisted.web._newclient import Response
 
-from typing import List, Dict, Optional, Any
-
-from la4_data.config import NAMESPACE_PREFIX
 import models
+from config import NAMESPACE_PREFIX
 
 GTFS_PREFIX = NAMESPACE_PREFIX + "gtfs."
-
-logger = logging.Logger("LA4-DATA-GTFS")
+ns = "LA4-DATA-GTFS"
+logger = logging.Logger(ns)
 
 
 class GTFSParsers(Enum):
@@ -229,11 +231,13 @@ class GTFSSession(ApplicationSession):
         for ur in uninstantiated_results:
             self.do_update(ur)
 
+        # todo handle configs being removed
+
     def ticker_update_gtfs_rt(self):
         pass
 
     def gtfs_herald(self):
-        """ Herald line data"""
+        """ Herald line data (wip)"""
         try:
             for i in self.gtfs_results:
                 config = self.gtfs_configs[i]
@@ -246,8 +250,9 @@ class GTFSSession(ApplicationSession):
             import traceback
             print(e)
             print(traceback.format_exc())
+
 comp = Component(
-    transports=u"ws://localhost:8080/ws",
+    transports=u"ws://localhost:8083/ws",
     realm=u"realm1",
     session_factory=GTFSSession
 )
