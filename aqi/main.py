@@ -1,6 +1,4 @@
 import datetime
-import logging
-import sys
 from typing import Dict, List
 
 import treq
@@ -21,8 +19,6 @@ from config import NAMESPACE_PREFIX
 API_KEY = "53295F0D-285C-4787-8336-4DA76A434E03"
 
 ns = "LA4-DATA-AQI"
-logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
-logger = logging.Logger(ns)
 
 AQI_PREFIX = NAMESPACE_PREFIX + "aqi."
 
@@ -44,7 +40,7 @@ class AQIConfig:
 
 class AQIObservationRequestParams(BaseModel):
     zipCode: str = Field(alias="zip_code")
-    format: str = "application/json" #
+    format: str = "application/json"  #
     distance: int = 25
     API_KEY: str = Field(alias="api_key")
 
@@ -53,7 +49,7 @@ class AQIForecastRequestParams(BaseModel):
     date: datetime.date
 
     zipCode: str = Field(alias="zip_code")
-    format: str = "application/json" #
+    format: str = "application/json"  #
     distance: int = 25
     API_KEY: str = Field(alias="api_key")
 
@@ -104,8 +100,7 @@ class AQISession(LAMachineCompatMixin, ApplicationSession):
 
     @inlineCallbacks
     def onJoin(self, details):
-        logger.info("session ready")
-        print("session ready")
+        self.log.info("session ready")
         self.regs = yield self.register(self)
         self.subs = yield self.subscribe(self)
 
@@ -113,9 +108,8 @@ class AQISession(LAMachineCompatMixin, ApplicationSession):
         self.ticker_aqi.start(1800)  # 30m
 
         self.herald_aqi = LoopingCall(self.aqi_herald)
-        self.herald_aqi.start(10)
-        print("completed startup")
-        logger.info("completed startup")
+        self.herald_aqi.start(.05)
+        self.log.info("completed startup")
 
     @wamp.register(AQI_PREFIX + "register")
     def register_config(self):
@@ -134,35 +128,39 @@ class AQISession(LAMachineCompatMixin, ApplicationSession):
             for res in res_list:
                 id = f"{self.cconfig.machine_name.lower()}-{key}-{str(res.param_name).lower()}"
                 yield self.publish(f"{SRC_PREFIX}{id}",
-                                      self.run_brightness_on_val(observation_color_map[res.category.number] * LEDS_IN_ARRAY_DEFAULT),
-                                      id=id, options=options)
+                                   self.run_brightness_on_val(
+                                       observation_color_map[res.category.number] * LEDS_IN_ARRAY_DEFAULT),
+                                   id=id, options=options)
         if not self.aqi_results:
-            print("Herald: No data has been loaded, chilling")
+            self.log.info("Herald: No data has been loaded, chilling")
 
     @inlineCallbacks
     def do_update_aqi(self, config_id: str):
         try:
-            logger.info(f"Updating {config_id}")
             config = self.aqi_configs[config_id]
 
             result = yield treq.get(self.PATH_OBSERVATIONS, params=config.as_obs_request().dict())
             data = yield result.json()
             # pls forgive the fucking federal govt
             for i in data:
-                i['DateObserved'] = i['DateObserved'].replace(" ","")
+                i['DateObserved'] = i['DateObserved'].replace(" ", "")
             self.aqi_results[config_id] = [AirNowObservation(**i) for i in data]
         except Exception as e:
             import traceback
-            print(e)
-            print(traceback.format_exc())
+            self.log.error(e)
+            self.log.error(traceback.format_exc())
 
     def ticker_update_aqi(self):
         uninstantiated_results = set(self.aqi_configs.keys()) - set(self.aqi_results.keys())
+        other_results = set(self.aqi_configs.keys()) - uninstantiated_results
         for ur in uninstantiated_results:
+            self.log.info(f"Updating {ur} (1st)")
             self.do_update_aqi(ur)
 
-        for k in self.aqi_configs.keys():
-            self.do_update_aqi(ur)
+        for k in other_results:
+            self.log.info(f"Updating {ur}")
+            self.do_update_aqi(k)
+
 
 comp = Component(
     transports=u"ws://localhost:8083/ws",

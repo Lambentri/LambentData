@@ -1,12 +1,11 @@
 import dataclasses
 import json
 import logging
+from dataclasses import dataclass
 from enum import Enum
 from typing import Dict, Any, Optional
 
 from autobahn import wamp
-from dataclasses import dataclass
-
 from autobahn.wamp import RegisterOptions
 from pydantic import BaseModel
 from pydantic.json import pydantic_encoder
@@ -134,7 +133,7 @@ class LAMachineCompatMixin:
         super().__init__(config)
 
         self.brightness_ticker = LoopingCall(self.ticker_brightness_ctrl)
-        self.brightness_ticker.start(.1)  # 30m
+        self.brightness_ticker.start(.1)
 
     def ticker_brightness_ctrl(self):
         if self.brightness_act != self.brightness_tgt.value:

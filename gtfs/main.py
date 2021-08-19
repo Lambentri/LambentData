@@ -1,13 +1,12 @@
 import csv
 import datetime
-import logging
 import os
-import treq
 import zipfile
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Any
 
 import pytz
+import treq
 from aenum import Enum
 from autobahn import wamp
 from autobahn.twisted import ApplicationSession
@@ -22,7 +21,6 @@ from config import NAMESPACE_PREFIX
 
 GTFS_PREFIX = NAMESPACE_PREFIX + "gtfs."
 ns = "LA4-DATA-GTFS"
-logger = logging.Logger(ns)
 
 
 class GTFSParsers(Enum):
@@ -106,12 +104,11 @@ class GTFSResults:
 
         stop_times = self._get_stop_times_by_id(id)
         nearby_times = self._filter_to_find_closest_times(stop_times, now, fut)
-        print(nearby_times)
         trips = self._get_trips_by_id([i.trip_id for i in nearby_times])
-        print(trips)
-        print("Upcoming")
+        self.log.info("Upcoming")
         for t in sorted(nearby_times, key=lambda x:x.arrival_time):
-            print(f"Line {trips[t.trip_id].route_id} Arrives at {t.arrival_time} {t.arrival_time_as_delta_seconds(now)} ")
+            self.log.info(
+                f"Line {trips[t.trip_id].route_id} Arrives at {t.arrival_time} {t.arrival_time_as_delta_seconds(now)} ")
 
 
 
@@ -142,7 +139,7 @@ class GTFSSession(ApplicationSession):
 
     @inlineCallbacks
     def onJoin(self, details):
-        print("session ready")
+        self.log.info("session ready")
         self.regs = yield self.register(self)
         self.subs = yield self.subscribe(self)
 
@@ -203,7 +200,7 @@ class GTFSSession(ApplicationSession):
             for file in os.listdir(f"cache/{config_id}/bundle"):
                 file_pre = file.replace('.txt', '')
                 if file_pre not in [i.name for i in GTFSParsers]:
-                    print(f"{file_pre} was not found in our parser list, may be a gtfs+/experimental entity")
+                    self.log.info(f"{file_pre} was not found in our parser list, may be a gtfs+/experimental entity")
                     continue
                 kwargs[file_pre] = []
                 with open(f"cache/{config_id}/bundle/{file}", 'r') as file_handle:
@@ -213,14 +210,14 @@ class GTFSSession(ApplicationSession):
                         kwargs[file_pre].append(getattr(GTFSParsers, file_pre).value(**dict(zip(header, row))))
 
             self.gtfs_results[config_id] = GTFSResults(**kwargs)
-            print("Completed Ingesting")
+            self.log.info(f"Completed Ingesting {config_id}")
 
         except Exception as e:
-            print(e)
+            self.log.error(e)
 
     @inlineCallbacks
     def do_update(self, config_id: str):
-        logger.info(f"Updating {config_id}")
+        self.log.info(f"Updating {config_id}")
         self.assert_directory_structure(config_id)
         yield self.download_and_write(config_id)
         self.unzip_bundle(config_id)
@@ -242,14 +239,14 @@ class GTFSSession(ApplicationSession):
             for i in self.gtfs_results:
                 config = self.gtfs_configs[i]
                 for stop in config.relevant_stops:
-                    print(f"heralding {i} - {stop}")
+                    self.log.debug(f"heralding {i} - {stop}")
                     self.gtfs_results[i].get_next_schedules_for_stop(stop)
             if not self.gtfs_results:
-                print("Herald: No data has been loaded, chilling")
+                self.log.info("Herald: No data has been loaded, chilling")
         except Exception as e:
             import traceback
-            print(e)
-            print(traceback.format_exc())
+            self.log.error(e)
+            self.log.error(traceback.format_exc())
 
 comp = Component(
     transports=u"ws://localhost:8083/ws",
