@@ -135,6 +135,10 @@ class LAMachineCompatMixin:
         self.brightness_ticker = LoopingCall(self.ticker_brightness_ctrl)
         self.brightness_ticker.start(.1)
 
+        self.brightness_pub_ticker = LoopingCall(self.global_brightness_publish)
+        self.brightness_pub_ticker.start(5)
+
+    # brightness control via pubsub listeners, unlike original la4 machine which is/was an rpc call
     def ticker_brightness_ctrl(self):
         if self.brightness_act != self.brightness_tgt.value:
             if self.brightness_act < self.brightness_tgt.value:
@@ -152,33 +156,34 @@ class LAMachineCompatMixin:
 
         return res
 
-    # brightness control (todo, rework this overall interface)
     @inlineCallbacks
     def global_brightness_publish(self):
-        yield self.publish("com.lambentri.edge.la4.machine.gb", brightness=self.brightness_tgt.value)
+        yield self.publish("com.lambentri.edge.la4.machine.gb",
+                           brightness=self.brightness_tgt.value,
+                           cls=self.cconfig.machine_name)
 
-    @wamp.register("com.lambentri.edge.la4.machine.gb.up", options=RegisterOptions())
-    def global_brightness_value_up(self):
-        """Move the global brightness up a single tick"""
-        self.brightness_tgt = self.brightness_tgt.next_up(self.brightness_tgt)
-        self.global_brightness_publish()
-        return {"brightness": self.brightness_tgt.value}
+    @wamp.subscribe("com.lambentri.edge.la4.machine.gb.up")
+    def brightness_value_up(self, cls: str, globl: bool = False):
+        """Move the brightness up a single tick"""
+        if cls == self.cconfig.machine_name or globl:
+            self.brightness_tgt = self.brightness_tgt.next_up(self.brightness_tgt)
+            self.global_brightness_publish()
 
-    @wamp.register("com.lambentri.edge.la4.machine.gb.dn")
-    def global_brightness_value_dn(self):
-        """Move the global brightness down a single tick"""
-        self.brightness_tgt = self.brightness_tgt.next_dn(self.brightness_tgt)
-        self.global_brightness_publish()
-        return {"brightness": self.brightness_tgt.value}
+    @wamp.subscribe("com.lambentri.edge.la4.machine.gb.dn")
+    def brightness_value_dn(self, cls: str, globl: bool = False):
+        """Move the brightness down a single tick"""
+        if cls == self.cconfig.machine_name or globl:
+            self.brightness_tgt = self.brightness_tgt.next_dn(self.brightness_tgt)
+            self.global_brightness_publish()
 
-    @wamp.register("com.lambentri.edge.la4.machine.gb.set")
-    def global_brightness_value_set(self, value: int):
-        """Set the global brightness"""
-        self.brightness_tgt = BrightnessEnum(value)
-        self.global_brightness_publish()
-        return {"brightness": self.brightness_tgt.value}
+    @wamp.subscribe("com.lambentri.edge.la4.machine.gb.set")
+    def brightness_value_set(self, cls: str, value: int, globl: bool = False):
+        """Set the brightness"""
+        if cls == self.cconfig.machine_name or globl:
+            self.brightness_tgt = BrightnessEnum(value)
+            self.global_brightness_publish()
 
-    @wamp.register("com.lambentri.edge.la4.machine.gb.get")
-    def global_brightness_value_get(self):
+    @wamp.subscribe("com.lambentri.edge.la4.machine.gb.get")
+    def brightness_value_get(self):
         """get the global brightness"""
-        return {"brightness": self.brightness_tgt.value}
+        return {"brightness": self.brightness_tgt.value, "cls": self.cconfig.machine_name}

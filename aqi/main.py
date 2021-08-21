@@ -122,7 +122,6 @@ class AQISession(LAMachineCompatMixin, ApplicationSession):
     @inlineCallbacks
     def aqi_herald(self):
         """Herald AQI Data (WIP)"""
-        """ Herald line data (wip)"""
         options = PublishOptions(retain=True)
         for key, res_list in self.aqi_results.items():
             for res in res_list:
@@ -158,7 +157,7 @@ class AQISession(LAMachineCompatMixin, ApplicationSession):
             self.do_update_aqi(ur)
 
         for k in other_results:
-            self.log.info(f"Updating {ur}")
+            self.log.info(f"Updating {k}")
             self.do_update_aqi(k)
 
 
