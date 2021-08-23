@@ -135,7 +135,6 @@ class LAMachineCompatMixin(ApplicationSession):
             speed_enum={self.cconfig.speed_enum.name: self.cconfig.speed_enum.value}
         )
         serialized = json.loads(json.dumps(schema, indent=4, default=pydantic_encoder))
-        print(serialized)
         return serialized
 
     def __init__(self, config=None):

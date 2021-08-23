@@ -47,7 +47,6 @@ class GBFSResult(BaseModel):
     def complex_machines(self, cconfig: CompatConfig) -> Dict[str, Machine]:
         if not self.station_information:
             return {}
-        print("complex machines called")
         if len(cconfig.smears) == 1:
             # F for fill, will add other ones
             return {id: Machine(
