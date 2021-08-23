@@ -22,9 +22,11 @@ class GBFSIndexFeed(BaseModel):
     url: str
 
 
+# class GBFSLanguage
+
 class GBFSIndex(BaseModel):
     last_updated: int  # unix timestamp
-    tll: int
+    ttl: int
     data: Dict[str, Dict[str, List[GBFSIndexFeed]]]
 
 
@@ -46,20 +48,26 @@ class GBFSSystemInformationData(BaseModel):
 
 class GBFSSystemInformation(BaseModel):
     data: GBFSSystemInformationData
-    late_updated: int
+    last_updated: int
     ttl: int
 
 
 # Entities (Station Information)
 class GBFSRentalMethod(Enum):
-    KEY = "key"
-    CREDITCARD = "creditcard"
-    PAYPASS = "paypass"
-    APPLEPAY = "applepay"
-    ANDROIDPAY = "androidpay"
-    TRANSITCARD = "transitcard"
-    ACCOUNTNUMBER = "accountnumber"
-    PHONE = "phone"
+    KEY = "KEY"
+    CREDITCARD = "CREDITCARD"
+    PAYPASS = "PAYPASS"
+    APPLEPAY = "APPLEPAY"
+    ANDROIDPAY = "ANDROIDPAY"
+    TRANSITCARD = "TRANSITCARD"
+    ACCOUNTNUMBER = "ACCOUNTNUMBER"
+    PHONE = "PHONE"
+
+    @classmethod
+    def _missing_name_(cls, name):
+        for member in cls:
+            if member.name.lower() == name.lower():
+                return member
 
 
 class GBFSStation(BaseModel):
@@ -73,16 +81,15 @@ class GBFSStation(BaseModel):
     cross_street: Optional[str]
     region_id: Optional[str]
     post_code: Optional[str]
-    rental_methods: List[GBFSRentalMethod]
+    rental_methods: List[GBFSRentalMethod]  # GBFSRentalMethod
     is_virtual_station: Optional[bool]
     station_area: Optional[MultiPolygon]
     capacity: Optional[int]
     vehicle_capacity: Optional[Dict[str, int]]
     vehicle_type_capacity: Optional[Dict[str, int]]
     is_valet_station: Optional[bool]
-    rental_uris: Dict[str, str]
+    rental_url: Optional[str]
 
-    rental_url: str
     # bluebikes (GBoston/MA) fields
     legacy_id: Optional[str]
     eightd_station_services: List[str] = Field(default_factory=list)  # ???
@@ -93,10 +100,17 @@ class GBFSStation(BaseModel):
     external_id: Optional[str]
 
 
+class GBFSStationInformationStations(BaseModel):
+    stations: List[GBFSStation]
+
+
 class GBFSStationInformation(BaseModel):
-    data: List[GBFSStation]
-    late_updated: int
+    data: GBFSStationInformationStations
+    last_updated: int
     ttl: int
+
+    def by_id(self, station_id) -> GBFSStation:
+        return next(iter([i for i in self.data.stations if i.short_name == station_id]))
 
 
 # Entities (Station Status)
@@ -132,9 +146,13 @@ class GBFSStationStatus(BaseModel):
     num_ebikes_available: Optional[str]
 
 
+class GBFSStationStatusData(BaseModel):
+    stations: List[GBFSStationStatus]
+
+
 class GBFSStationStatus(BaseModel):
-    data: List[GBFSStationStatus]
-    late_updated: int
+    data: GBFSStationStatusData
+    last_updated: int
     ttl: int
 
 
@@ -160,7 +178,7 @@ class GBFSFreeBikeData(BaseModel):
 
 class GBFSFreeBikeStatus(BaseModel):
     data: GBFSFreeBikeData
-    late_updated: int
+    last_updated: int
     ttl: int
 
 
@@ -178,7 +196,7 @@ class GBFSSystemHoursData(BaseModel):
 
 class GBFSSystemHours(BaseModel):
     data: GBFSSystemHoursData
-    late_updated: int
+    last_updated: int
     ttl: int
 
 
@@ -194,12 +212,12 @@ class GBFSSystemCalendarCalendar(BaseModel):
 
 
 class GBFSSystemCalendarData(BaseModel):
-    rental_hours: List[GBFSSystemCalendarCalendar]
+    calendars: List[GBFSSystemCalendarCalendar]
 
 
 class GBFSSystemCalendar(BaseModel):
     data: GBFSSystemCalendarData
-    late_updated: int
+    last_updated: int
     ttl: int
 
 
@@ -215,7 +233,7 @@ class GBFSSystemRegionData(BaseModel):
 
 class GBFSSystemRegion(BaseModel):
     data: GBFSSystemRegionData
-    late_updated: int
+    last_updated: int
     ttl: int
 
 
@@ -223,7 +241,13 @@ class GBFSSystemRegion(BaseModel):
 class GBFSSystemAlertType(Enum):
     SYSTEM_CLOSURE = "system_closure"
     STATION_CLOSURE = "station_closure"
+    OTHER = "OTHER"
 
+    @classmethod
+    def _missing_name_(cls, name):
+        for member in cls:
+            if member.name.lower() == name.lower():
+                return member
 
 class GBFSSystemAlertsAlertTime(BaseModel):
     start: int
@@ -233,7 +257,7 @@ class GBFSSystemAlertsAlertTime(BaseModel):
 class GBFSSystemAlertsAlert(BaseModel):
     alert_id: str
     type: GBFSSystemAlertType
-    times: Optional[GBFSSystemAlertsAlertTime]
+    times: Optional[List[GBFSSystemAlertsAlertTime]]
     station_ids: Optional[List[str]]
     region_ids: Optional[List[str]]
     url: Optional[str]
@@ -248,5 +272,17 @@ class GBFSSystemAlertsData(BaseModel):
 
 class GBFSSystemAlerts(BaseModel):
     data: GBFSSystemAlertsData
-    late_updated: int
+    last_updated: int
     ttl: int
+
+
+feed_to_parser = {
+    "system_information": GBFSSystemInformation,
+    "station_information": GBFSStationInformation,
+    "station_status": GBFSStationStatus,
+    "free_bike_status": GBFSFreeBikeStatus,
+    "system_hours": GBFSSystemHours,
+    "system_calendar": GBFSSystemCalendar,
+    "system_regions": GBFSSystemRegion,
+    "system_alerts": GBFSSystemAlerts
+}

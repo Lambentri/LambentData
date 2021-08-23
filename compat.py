@@ -3,14 +3,17 @@ import json
 import logging
 from dataclasses import dataclass
 from enum import Enum
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
+import treq
 from autobahn import wamp
+from autobahn.twisted import ApplicationSession
 from autobahn.wamp import RegisterOptions
 from pydantic import BaseModel
 from pydantic.json import pydantic_encoder
 from twisted.internet.defer import inlineCallbacks
 from twisted.internet.task import LoopingCall
+from twisted.web._newclient import Response
 
 logger = logging.Logger("LA4-COMPAT")
 
@@ -82,8 +85,10 @@ class CompatConfig:
     machine_subkey_field: Optional[str] = None  # for lists-of-dicts
     speed_enum: SpeedEnum = SpeedEnum.ONES
 
+    smears: List[int] = dataclasses.field(default_factory=[1])
 
-class LAMachineCompatMixin:
+
+class LAMachineCompatMixin(ApplicationSession):
     cconfig: CompatConfig
     brightness_tgt = BrightnessEnum(3)
     brightness_act = 255
@@ -93,11 +98,12 @@ class LAMachineCompatMixin:
     def machine_schema(self):
         if not self.cconfig:
             raise Exception("CompatConfig must be added to subclasses for LA4 Autocompat")
-
         res_field: Dict[str, Any] = getattr(self, self.cconfig.result_field)
         schemas = {}
         for key, d in res_field.items():
-            if isinstance(d, list):
+            if hasattr(d, "complex_machines"):
+                schemas.update(d.complex_machines(self.cconfig))
+            elif isinstance(d, list):
                 for m in d:  # this is fucked, fix it.
                     schemas[f"{key}-{getattr(m, str(self.cconfig.machine_subkey_field))}"] = Machine(
                         name=self.cconfig.machine_name,
@@ -108,7 +114,7 @@ class LAMachineCompatMixin:
                         speed=self.cconfig.speed_enum.name
                     )
 
-            if isinstance(d, dict):
+            elif isinstance(d, dict):
                 working = {
                     key: Machine(
                         name=self.cconfig.machine_name,
@@ -121,22 +127,32 @@ class LAMachineCompatMixin:
                 }
 
                 schemas.update(working)
+            else:
+                self.log.info(f"Unknown Structure {str(d)}")
 
         schema = MachineDict(
             machines=schemas,
             speed_enum={self.cconfig.speed_enum.name: self.cconfig.speed_enum.value}
         )
         serialized = json.loads(json.dumps(schema, indent=4, default=pydantic_encoder))
+        print(serialized)
         return serialized
 
     def __init__(self, config=None):
-        super().__init__(config)
 
+        super().__init__(config)
         self.brightness_ticker = LoopingCall(self.ticker_brightness_ctrl)
         self.brightness_ticker.start(.1)
-
         self.brightness_pub_ticker = LoopingCall(self.global_brightness_publish)
         self.brightness_pub_ticker.start(5)
+
+        self.log.info("LA4 Compat Initialized")
+
+    @inlineCallbacks
+    def retrieve_url(self, url: str, kwargs: Dict[str, Any] = {}) -> Optional[Response]:
+        response: Response = yield treq.get(url, **kwargs)
+        if response.code in [200, 201, 202]:
+            return response
 
     # brightness control via pubsub listeners, unlike original la4 machine which is/was an rpc call
     def ticker_brightness_ctrl(self):
@@ -158,9 +174,10 @@ class LAMachineCompatMixin:
 
     @inlineCallbacks
     def global_brightness_publish(self):
-        yield self.publish("com.lambentri.edge.la4.machine.gb",
-                           brightness=self.brightness_tgt.value,
-                           cls=self.cconfig.machine_name)
+        if self.is_connected():
+            yield self.publish("com.lambentri.edge.la4.machine.gb",
+                               brightness=self.brightness_tgt.value,
+                               cls=self.cconfig.machine_name)
 
     @wamp.subscribe("com.lambentri.edge.la4.machine.gb.up")
     def brightness_value_up(self, cls: str, globl: bool = False):

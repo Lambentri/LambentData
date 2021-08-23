@@ -1,7 +1,7 @@
 import datetime
+from enum import Enum
 
 from pydantic import BaseModel, Field
-from enum import IntEnum, Enum
 
 observation_color_map = {
     1: [0, 228, 0],
@@ -43,9 +43,3 @@ class AirNowObservation(BaseModel):
     category: AirNowCategory = Field(alias="Category")
 
 
-[{"DateObserved": "2021-08-13 ", "HourObserved": 0, "LocalTimeZone": "EST", "ReportingArea": "Boston",
-  "StateCode": "MA", "Latitude": 42.351, "Longitude": -71.051, "ParameterName": "O3", "AQI": 26,
-  "Category": {"Number": 1, "Name": "Good"}},
- {"DateObserved": "2021-08-13 ", "HourObserved": 0, "LocalTimeZone": "EST", "ReportingArea": "Boston",
-  "StateCode": "MA", "Latitude": 42.351, "Longitude": -71.051, "ParameterName": "PM2.5", "AQI": 21,
-  "Category": {"Number": 1, "Name": "Good"}}]

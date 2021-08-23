@@ -40,7 +40,7 @@ class ExampleSessionTwisted(LAMachineCompatMixin, ApplicationSession):
     def register_config(self):
         pass
 
-    @wamp.register(EXAMPLE_PREFIX + "register")
+    @wamp.register(EXAMPLE_PREFIX + "remove")
     def remove_config(self):
         pass
 
